@@ -1,0 +1,12 @@
+# Instalar: pip install pre-commit && pre-commit install (una vez por clon)
+# Corre en cada `git commit`, antes de que el commit exista.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.0
+    hooks:
+      - id: terraform_fmt

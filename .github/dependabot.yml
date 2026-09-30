@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # azurerm pinned to < 5.0.0 on purpose (versions.tf) - varias AVM
+      # modules usadas aca (keyvault-vault, documentdb-databaseaccount,
+      # network-applicationgatewaywebapplicationfirewallpolicy) todavia no
+      # soportan azurerm v5.x. Sin esto, Dependabot va a proponer un bump
+      # mayor que pisa ese pin en silencio.
+      - dependency-name: "hashicorp/azurerm"
+        update-types: ["version-update:semver-major"]
+    groups:
+      terraform:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

@@ -1,0 +1,40 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+tfplan
+*.tfplan
+plan.json
+.terraformrc
+terraform.rc
+
+# Variables que pueden contener secretos
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Credenciales / secretos
+.env
+.env.*
+*.pem
+*.key
+credentials
+.azure/
+
+# Editor / OS
+.DS_Store
+.vscode/
+*.swp
+
+# Python (Durable Functions / FastAPI, agregado cuando se escriba el codigo de la app)
+__pycache__/
+*.pyc
+.venv/
+venv/
