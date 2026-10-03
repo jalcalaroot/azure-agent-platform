@@ -49,32 +49,23 @@ module "function_app_storage" {
     blob = {
       subnet_resource_id            = var.network_privatelink_subnet_id
       subresource_name              = "blob"
-      private_dns_zone_resource_ids = [azurerm_private_dns_zone.blob_func.id]
+      private_dns_zone_resource_ids = [data.azurerm_private_dns_zone.blob.id]
     }
   }
 }
 
-resource "azurerm_private_dns_zone" "blob_func" {
-  name                = "privatelink.blob.core.windows.net.func"
+# azure-virtual-network ya crea Y linkea a la VNet la zona real
+# "privatelink.blob.core.windows.net" (para su propio storage), y no pueden
+# existir dos zonas con el mismo nombre en el mismo resource group - se
+# reutiliza por data source en vez de crear otra. Antes este repo creaba
+# "privatelink.blob.core.windows.net.func", un nombre inventado que no
+# resuelve nada: el CNAME publico de un storage account apunta a
+# <cuenta>.privatelink.blob.core.windows.net, nunca a un sufijo ".func".
+# Consecuencia: requiere azure-virtual-network desplegado (ya es
+# prerrequisito de este proyecto).
+data "azurerm_private_dns_zone" "blob" {
+  name                = "privatelink.blob.core.windows.net"
   resource_group_name = var.resource_group_name
-  tags                = local.tags
-
-  # Nombre de zona con sufijo ".func" - azure-virtual-network YA crea
-  # "privatelink.blob.core.windows.net" para su propio storage account; una
-  # Private DNS Zone con el nombre real de dominio no puede duplicarse dos
-  # veces en el mismo resource group. Workaround pragmatico: esta zona
-  # separada solo resuelve para el storage de este Function App. Revisar
-  # si conviene consolidar ambas zonas en azure-virtual-network mas
-  # adelante.
-}
-
-resource "azurerm_private_dns_zone_virtual_network_link" "blob_func" {
-  name                  = "link-blobfunc-agent-platform"
-  resource_group_name   = var.resource_group_name
-  private_dns_zone_name = azurerm_private_dns_zone.blob_func.name
-  virtual_network_id    = var.network_vnet_id
-  registration_enabled  = false
-  tags                  = local.tags
 }
 
 resource "azurerm_storage_container" "deployment_package" {

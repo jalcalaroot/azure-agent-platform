@@ -1,5 +1,26 @@
 # Componente 2 - Cosmos DB.
 #
+# Zona DNS privada del endpoint SQL (NoSQL) de Cosmos DB. Sin ella el
+# Private Endpoint existe pero <cuenta>.documents.azure.com sigue
+# resolviendo a la IP publica, y el Function App (sin acceso publico a
+# Cosmos) no podria conectarse. Faltaba en la primera version de este
+# archivo - las de AI Foundry, Content Safety, storage y Function App ya
+# estaban.
+resource "azurerm_private_dns_zone" "cosmos_sql" {
+  name                = "privatelink.documents.azure.com"
+  resource_group_name = var.resource_group_name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "cosmos_sql" {
+  name                  = "link-cosmos-sql-agent-platform"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.cosmos_sql.name
+  virtual_network_id    = var.network_vnet_id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
 # GAP REAL, confirmado contra la doc del modulo (mcp__terraform,
 # 2026-09-30) Y contra la doc del recurso nativo azurerm_cosmosdb_sql_container
 # (provider azurerm 5.7.0): NINGUNO de los dos expone un campo de
@@ -32,8 +53,9 @@ module "cosmos" {
 
   private_endpoints = {
     sql = {
-      subnet_resource_id = var.network_privatelink_subnet_id
-      subresource_name   = "SQL"
+      subnet_resource_id            = var.network_privatelink_subnet_id
+      subresource_name              = "SQL"
+      private_dns_zone_resource_ids = [azurerm_private_dns_zone.cosmos_sql.id]
     }
   }
 
