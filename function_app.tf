@@ -51,7 +51,50 @@ module "function_app_storage" {
       subresource_name              = "blob"
       private_dns_zone_resource_ids = [data.azurerm_private_dns_zone.blob.id]
     }
+    # El host de Functions (AzureWebJobsStorage por identidad) y Durable
+    # Functions (provider Azure Storage) usan tambien cola y tabla, no solo
+    # blob - sin estos 2 endpoints privados el app no arranca o no orquesta.
+    queue = {
+      subnet_resource_id            = var.network_privatelink_subnet_id
+      subresource_name              = "queue"
+      private_dns_zone_resource_ids = [azurerm_private_dns_zone.queue.id]
+    }
+    table = {
+      subnet_resource_id            = var.network_privatelink_subnet_id
+      subresource_name              = "table"
+      private_dns_zone_resource_ids = [azurerm_private_dns_zone.table.id]
+    }
   }
+}
+
+resource "azurerm_private_dns_zone" "queue" {
+  name                = "privatelink.queue.core.windows.net"
+  resource_group_name = var.resource_group_name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "queue" {
+  name                  = "link-queue-agent-platform"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.queue.name
+  virtual_network_id    = var.network_vnet_id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+resource "azurerm_private_dns_zone" "table" {
+  name                = "privatelink.table.core.windows.net"
+  resource_group_name = var.resource_group_name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "table" {
+  name                  = "link-table-agent-platform"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.table.name
+  virtual_network_id    = var.network_vnet_id
+  registration_enabled  = false
+  tags                  = local.tags
 }
 
 # azure-virtual-network ya crea Y linkea a la VNet la zona real
@@ -125,6 +168,10 @@ module "function_app" {
 
   enable_telemetry = false
 
+  # Los roles de storage tienen que existir antes de que la plataforma lea
+  # el deployment package al crear el app.
+  depends_on = [module.role_assignments]
+
   kind                   = "functionapp"
   os_type                = "Linux"
   function_app_uses_fc1  = true
@@ -141,6 +188,27 @@ module "function_app" {
   storage_container_type            = "blobContainer"
   storage_container_endpoint        = "https://${var.function_app_storage_account_name}.blob.core.windows.net/${azurerm_storage_container.deployment_package.name}"
   storage_user_assigned_identity_id = azurerm_user_assigned_identity.function_app.id
+
+  # Conexion SEPARADA de la de deployment: AzureWebJobsStorage es la
+  # conexion propia del host (function keys, singletons, metadata de
+  # triggers, tareas de Durable Functions) y, segun la doc del propio
+  # modulo, "every plan requires" - sin ella el app no arranca. Encontrado
+  # leyendo el codigo del modulo, no en un plan/apply.
+  storage_account_name                     = var.function_app_storage_account_name
+  storage_uses_managed_identity            = true
+  storage_user_assigned_identity_client_id = azurerm_user_assigned_identity.function_app.client_id
+
+  # Configuracion que lee el codigo de la aplicacion (app/). Todo accede por
+  # la Managed Identity del Function App - sin keys ni connection strings.
+  app_settings = {
+    AZURE_CLIENT_ID         = azurerm_user_assigned_identity.function_app.client_id
+    COSMOS_ENDPOINT         = module.cosmos.endpoint
+    COSMOS_DATABASE         = "policyhub"
+    AZURE_OPENAI_ENDPOINT   = "https://${var.ai_foundry_account_name}.openai.azure.com/"
+    EMBEDDING_DEPLOYMENT    = azurerm_cognitive_deployment.embedding.name
+    CHAT_DEPLOYMENT         = azurerm_cognitive_deployment.chat.name
+    CONTENT_SAFETY_ENDPOINT = azurerm_cognitive_account.content_safety.endpoint
+  }
 
   managed_identities = {
     user_assigned_resource_ids = [azurerm_user_assigned_identity.function_app.id]

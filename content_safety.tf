@@ -17,9 +17,11 @@ resource "azurerm_cognitive_account" "content_safety" {
   local_auth_enabled            = false
   public_network_access_enabled = false
 
+  # Sin `bypass`: el provider lo rechaza para kind ContentSafety (solo vale
+  # para OpenAI, AIServices y TextAnalytics) - encontrado en el primer plan
+  # real, `validate` no lo detecta.
   network_acls {
     default_action = "Deny"
-    bypass         = "AzureServices"
   }
 
   tags = local.tags

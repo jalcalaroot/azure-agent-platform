@@ -89,6 +89,21 @@ module "apim" {
           method       = "POST"
           url_template = "/ask"
         }
+        ingest = {
+          display_name = "Ingest"
+          method       = "POST"
+          url_template = "/ingest"
+        }
+        ingest_status = {
+          display_name = "Ingest status"
+          method       = "GET"
+          url_template = "/ingest/{instance_id}"
+          template_parameters = [{
+            name     = "instance_id"
+            required = true
+            type     = "string"
+          }]
+        }
         health = {
           display_name = "Health"
           method       = "GET"

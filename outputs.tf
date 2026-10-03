@@ -5,7 +5,7 @@ output "cosmos_account_id" {
 
 output "cosmos_account_endpoint" {
   description = "Endpoint de la cuenta de Cosmos DB"
-  value       = module.cosmos.resource.endpoint
+  value       = module.cosmos.endpoint
 }
 
 output "ai_foundry_account_id" {
