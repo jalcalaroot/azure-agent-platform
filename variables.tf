@@ -121,13 +121,13 @@ variable "embedding_model_version" {
 variable "chat_model_name" {
   description = "Nombre del modelo de chat a deployar en AI Foundry"
   type        = string
-  default     = "gpt-4o-mini"
+  default     = "gpt-4.1-mini"
 }
 
 variable "chat_model_version" {
   description = "Version del modelo de chat - confirmar contra `az cognitiveservices account list-models` al momento del apply."
   type        = string
-  default     = "2024-07-18"
+  default     = "2025-04-14"
 }
 
 # ==============================================================================
@@ -147,7 +147,7 @@ variable "content_safety_account_name" {
 variable "function_app_name" {
   description = "Nombre del Function App consolidado (FastAPI + Durable Functions)"
   type        = string
-  default     = "func-agent-platform"
+  default     = "func-jalcalaroot-agent"
 }
 
 variable "function_app_storage_account_name" {
@@ -181,7 +181,7 @@ variable "fc1_python_version" {
 variable "apim_name" {
   description = "Nombre del API Management - debe ser unico globalmente (el gateway queda en <nombre>.azure-api.net)"
   type        = string
-  default     = "apim-agent-platform"
+  default     = "apim-jalcalaroot-agent"
 }
 
 variable "apim_publisher_name" {

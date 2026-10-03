@@ -47,6 +47,7 @@ module "function_app_storage" {
 
   private_endpoints = {
     blob = {
+      name                          = "pe-${var.function_app_storage_account_name}-blob"
       subnet_resource_id            = var.network_privatelink_subnet_id
       subresource_name              = "blob"
       private_dns_zone_resource_ids = [data.azurerm_private_dns_zone.blob.id]
@@ -55,11 +56,13 @@ module "function_app_storage" {
     # Functions (provider Azure Storage) usan tambien cola y tabla, no solo
     # blob - sin estos 2 endpoints privados el app no arranca o no orquesta.
     queue = {
+      name                          = "pe-${var.function_app_storage_account_name}-queue"
       subnet_resource_id            = var.network_privatelink_subnet_id
       subresource_name              = "queue"
       private_dns_zone_resource_ids = [azurerm_private_dns_zone.queue.id]
     }
     table = {
+      name                          = "pe-${var.function_app_storage_account_name}-table"
       subnet_resource_id            = var.network_privatelink_subnet_id
       subresource_name              = "table"
       private_dns_zone_resource_ids = [azurerm_private_dns_zone.table.id]

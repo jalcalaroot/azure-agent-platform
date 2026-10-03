@@ -14,6 +14,20 @@ locals {
   apim_api_path = "policyhub"
 }
 
+# IP publica Standard propia para la inyeccion en VNet (en modo External es
+# opcional - Azure puede gestionar una - pero la primera activacion con IP
+# gestionada fallo con ActivationFailed). El domain_name_label da el FQDN
+# que APIM usa para la IP.
+resource "azurerm_public_ip" "apim" {
+  name                = "pip-${var.apim_name}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  domain_name_label   = var.apim_name
+  tags                = local.tags
+}
+
 module "apim" {
   #checkov:skip=CKV_TF_1:pinned por version semver del Terraform Registry, no un git tag.
   source  = "Azure/avm-res-apimanagement-service/azurerm"
@@ -30,12 +44,11 @@ module "apim" {
 
   sku_name = "Developer_1"
 
-  # Sin public_ip_address_id: en modo External la IP publica es opcional y
-  # Azure configura una gestionada (doc de APIM VNet injection). No hay
-  # ningun ejemplo del modulo con Developer + VNet para confirmarlo, ver
-  # CLAUDE.md, "Gaps y bugs reales".
+  # No hay ningun ejemplo del modulo con Developer + VNet, ver CLAUDE.md,
+  # "Gaps y bugs reales".
   virtual_network_type      = "External"
   virtual_network_subnet_id = var.network_apim_subnet_id
+  public_ip_address_id      = azurerm_public_ip.apim.id
 
   apis = {
     policy_hub = {

@@ -66,6 +66,21 @@ terraform init
 terraform apply
 ```
 
+El código de la aplicación (`app/`) se publica aparte, con OneDeploy y build remoto (el Function App es privado: hay que abrir su acceso público solo durante el deploy y cerrarlo después). Después se ingestan los READMEs y se consulta:
+
+```bash
+cd app && zip -r ../app.zip . -x "tests/*" ".venv/*" "__pycache__/*"
+curl -X POST "https://<function-app>.scm.azurewebsites.net/api/publish?RemoteBuild=true" \
+  -H "Authorization: Bearer $(az account get-access-token --resource https://management.azure.com --query accessToken -o tsv)" \
+  -H "Content-Type: application/zip" --data-binary @../app.zip
+
+curl -X POST "$API_BASE_URL/ingest" -H "Authorization: Bearer $TOKEN" -d '{}'   # 4 READMEs por defecto
+curl -X POST "$API_BASE_URL/ask"    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"question": "¿Qué subnets tiene la VNet?"}'
+```
+
+Tests locales: `cd app && pip install -r requirements-dev.txt && pytest`. Demo: `demo/streamlit_app.py` y la colección de Postman en `demo/postman/`.
+
 `resource_group_name`/`location` default a `jalcalaroot`/`eastus`. Las 5 variables `network_*` (subnets + Log Analytics Workspace de `azure-virtual-network`) no tienen default — pasarlas explícitamente.
 
 ## Configuration
@@ -79,11 +94,11 @@ terraform apply
 | `cosmos_account_name` | `cosmos-agent-platform` | único globalmente |
 | `ai_foundry_account_name` / `content_safety_account_name` | `aif-agent-platform` / `cs-agent-platform` | únicos globalmente (custom subdomain) |
 | `embedding_model_name` / `embedding_model_version` | `text-embedding-3-small` / `1` | |
-| `chat_model_name` / `chat_model_version` | `gpt-4o-mini` / `2024-07-18` | |
-| `function_app_name` / `function_app_storage_account_name` | `func-agent-platform` / `stagentplatformfunc` | storage único globalmente |
+| `chat_model_name` / `chat_model_version` | `gpt-4.1-mini` / `2025-04-14` | modelo no razonador (acepta `temperature`) |
+| `function_app_name` / `function_app_storage_account_name` | `func-jalcalaroot-agent` / `stagentplatformfunc` | storage único globalmente |
 | `fc1_instance_memory_mb` / `fc1_maximum_instance_count` | `2048` / `100` | |
 | `fc1_python_version` | `3.12` | |
-| `apim_name` / `apim_publisher_name` | `apim-agent-platform` / `jalcalaroot` | nombre único globalmente (`<nombre>.azure-api.net`) |
+| `apim_name` / `apim_publisher_name` | `apim-jalcalaroot-agent` / `jalcalaroot` | nombre único globalmente (`<nombre>.azure-api.net`) |
 | `apim_publisher_email` | — | via `TF_VAR_apim_publisher_email` (repo público, sin default) |
 | `app_registration_display_name` / `app_registration_identifier_uri` | `policy-hub` / `api://policy-hub` | |
 | `owner` / `environment` / `tags` | `johan` / `dev` / `{}` | |

@@ -17,7 +17,7 @@
     ]
   },
   "variable": [
-    { "key": "gateway", "value": "https://apim-agent-platform.azure-api.net/policyhub" },
+    { "key": "gateway", "value": "https://apim-jalcalaroot-agent.azure-api.net/policyhub" },
     { "key": "tenant_id", "value": "" },
     { "key": "client_id", "value": "" },
     { "key": "instance_id", "value": "" }

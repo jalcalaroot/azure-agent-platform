@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 bp = df.Blueprint()
 
+# Los parametros de las actividades van SIN anotaciones de tipo: el worker de
+# Python de Functions valida la anotacion del binding al cargar y rechaza
+# genericos como list[dict] (FunctionLoadError, visto en el primer deploy
+# real). Los tests locales no lo detectan - esa validacion es del worker.
+
 GITHUB_OWNER = "jalcalaroot"
 # jalcalaroot-azure-bootstrap es privado (el documento de requisitos lo
 # listaba como publico) - se reemplaza por azure-agent-platform, publico.
@@ -89,7 +94,7 @@ def ingest_document(context: df.DurableOrchestrationContext):
 
 
 @bp.activity_trigger(input_name="repo")
-def chunk_document(repo: str) -> list[dict]:
+def chunk_document(repo):
     url = readme_url(repo)
     response = httpx.get(url, timeout=30, follow_redirects=True)
     response.raise_for_status()
@@ -103,13 +108,13 @@ def chunk_document(repo: str) -> list[dict]:
 
 
 @bp.activity_trigger(input_name="chunks")
-def generate_embeddings(chunks: list[dict]) -> list[dict]:
+def generate_embeddings(chunks):
     vectors = embeddings.embed_texts([c["content"] for c in chunks])
     return [{**c, "embedding": v} for c, v in zip(chunks, vectors)]
 
 
 @bp.activity_trigger(input_name="payload")
-def store_in_cosmos(payload: dict) -> int:
+def store_in_cosmos(payload):
     chunks = sorted(payload["chunks"], key=lambda c: c["chunk_index"])
     stored = store.upsert_chunks(chunks)
     removed = store.delete_stale_chunks(payload["repo"], len(chunks))
