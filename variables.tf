@@ -46,32 +46,29 @@ variable "tags" {
 # ==============================================================================
 
 variable "network_privatelink_subnet_id" {
-  description = "privatelink_subnet_id de azure-virtual-network - destino de los Private Endpoints de Cosmos DB, Key Vault, AI Foundry, Content Safety y el Function App (inbound)."
+  description = "privatelink_subnet_id de azure-virtual-network - destino de los Private Endpoints de Cosmos DB, AI Foundry, Content Safety, el storage del Function App y el Function App (inbound)."
   type        = string
 }
 
-variable "network_appgw_subnet_id" {
+variable "network_apim_subnet_id" {
   description = <<-EOT
-    appgw_subnet_id de azure-virtual-network (10.0.40.0/24), REUTILIZADA -
-    el documento de requisitos original pedia "una subnet nueva para App
-    Gateway", pero azure-virtual-network ya expone una (creada para uso
-    futuro de Application Gateway en la cuenta). Un Application Gateway
-    SKU v2 (WAF_v2 incluido) soporta multiples instancias de gateway en la
-    misma subnet - no hace falta una subnet dedicada por gateway, a
-    diferencia del SKU v1. Decision documentada aca en vez de modificar
-    azure-virtual-network para esto.
+    apim_subnet_id de azure-virtual-network (snet-apim, 10.0.74.0/24, sin
+    delegation, con nsg-apim) - donde se inyecta API Management en modo
+    VNet External. Copiar aca el output network_apim_subnet_id. Ver
+    azure-virtual-network/CLAUDE.md, seccion "Subnet nueva apim".
   EOT
   type        = string
 }
 
 variable "network_function_app_subnet_id" {
   description = <<-EOT
-    GAP RESUELTO 2026-09-30: azure-virtual-network no tenia ninguna subnet
-    delegada a Microsoft.Web/serverFarms - se agrego una nueva (func,
-    10.0.73.0/24, NSG dedicada nsg-func, aplicada contra la VNet real) para
-    esto. Copiar aca el output network_func_subnet_id de
-    azure-virtual-network. Ver azure-virtual-network/CLAUDE.md, seccion
-    "Subnet nueva func, delegada a Microsoft.Web/serverFarms".
+    azure-virtual-network no tenia ninguna subnet delegada a
+    Microsoft.Web/serverFarms - se agrego una nueva en codigo (func,
+    10.0.73.0/24, NSG dedicada nsg-func; PR #32 de ese repo, todavia sin
+    mergear ni aplicar) para esto. Copiar aca el output
+    network_func_subnet_id de azure-virtual-network. Ver
+    azure-virtual-network/CLAUDE.md, seccion "Subnet nueva func, delegada a
+    Microsoft.Web/serverFarms".
 
     Sin default a proposito (mismo criterio que el resto de variables
     network_* de este repo - se copian a mano, sin terraform_remote_state).
@@ -178,42 +175,24 @@ variable "fc1_python_version" {
 }
 
 # ==============================================================================
-# Application Gateway + WAF_v2
+# API Management (tier Developer, VNet External)
 # ==============================================================================
 
-variable "app_gateway_name" {
-  description = "Nombre del Application Gateway"
+variable "apim_name" {
+  description = "Nombre del API Management - debe ser unico globalmente (el gateway queda en <nombre>.azure-api.net)"
   type        = string
-  default     = "agw-agent-platform"
+  default     = "apim-agent-platform"
 }
 
-variable "app_gateway_cert_subject" {
-  description = <<-EOT
-    Subject CN del certificado TLS autofirmado del listener del
-    Application Gateway (generado por el propio Key Vault, issuer "Self" -
-    ver keyvault.tf). Sin dominio real asignado a este proyecto todavia -
-    reemplazar por un certificado real (Let's Encrypt u otro) el dia que
-    haya un hostname publico, mismo patron que azure-aks-cluster/
-    azure-container-apps.
-  EOT
+variable "apim_publisher_name" {
+  description = "Nombre del publisher de API Management"
   type        = string
-  default     = "CN=agent-platform.jalcalaroot.internal"
+  default     = "jalcalaroot"
 }
 
-variable "waf_policy_name" {
-  description = "Nombre de la WAF Policy asociada al Application Gateway"
+variable "apim_publisher_email" {
+  description = "Email del publisher de API Management (notificaciones del servicio). Sin default a proposito - este repo es publico: pasarlo via TF_VAR_apim_publisher_email o la GitHub variable APIM_PUBLISHER_EMAIL."
   type        = string
-  default     = "waf-agent-platform"
-}
-
-# ==============================================================================
-# Key Vault
-# ==============================================================================
-
-variable "key_vault_name" {
-  description = "Nombre del Key Vault de este proyecto (certificado TLS del App Gateway) - debe ser unico globalmente"
-  type        = string
-  default     = "kv-agent-platform"
 }
 
 # ==============================================================================
