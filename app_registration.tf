@@ -16,6 +16,13 @@ resource "azuread_application" "policy_hub" {
 
   sign_in_audience = "AzureADMyOrg" # single-tenant, alcanza para este proyecto
 
+  # Los owners los fija quien crea el recurso (el usuario local o la identidad
+  # de CI, segun quien corra). Ignorarlos evita que el apply de CI intente
+  # quitar al otro dueño, operacion que requiere mas privilegios que OwnedBy.
+  lifecycle {
+    ignore_changes = [owners]
+  }
+
   api {
     requested_access_token_version = 2
 
@@ -56,4 +63,11 @@ resource "azuread_application_pre_authorized" "azure_cli" {
 resource "azuread_service_principal" "policy_hub" {
   client_id = azuread_application.policy_hub.client_id
   owners    = [data.azuread_client_config.current.object_id]
+
+  # Los owners los fija quien crea el recurso (el usuario local o la identidad
+  # de CI, segun quien corra). Ignorarlos evita que el apply de CI intente
+  # quitar al otro dueño, operacion que requiere mas privilegios que OwnedBy.
+  lifecycle {
+    ignore_changes = [owners]
+  }
 }
