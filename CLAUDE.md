@@ -175,7 +175,7 @@ Lecciones: (1) un 500 genérico de APIM se diagnostica con GatewayLogs, no con l
 - `GET /health` 200 sin token. `POST /ask` sin token: 401.
 - Con token de Entra (`az account get-access-token --scope api://policy-hub/.default`): ingesta `POST /ingest` + `GET /ingest/{id}` completa, 47 chunks; `/ask` 200 con 5 fuentes; caché semántica `cache_hit: true` (~0,5 s); prompt injection 400 `prompt_attack`; fuera de alcance responde "No sé ...".
 - **Rate limit**: ráfaga de 80 requests sin token = 60 x 401 y 20 x 429 (cuenta por IP, antes de `validate-jwt`).
-- No verificado: inyección indirecta con un documento envenenado real y Content Safety sobre salida con contenido dañino real (lógica cubierta con mocks); el demo Streamlit no se ejecutó en esta pasada.
+- No verificado: inyección indirecta con un documento envenenado real y Content Safety sobre salida con contenido dañino real (lógica cubierta con mocks); el demo Streamlit levanta (HTTP 200) y su ruta de auth (`DefaultAzureCredential` -> APIM -> /ask) responde 200; el clic en la UI no se probó con navegador.
 
 ## Dataset
 
