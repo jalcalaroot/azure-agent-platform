@@ -1,7 +1,14 @@
 provider "azurerm" {
   subscription_id = var.subscription_id
 
-  features {}
+  features {
+    # Un APIM destruido queda en soft-delete 48h y bloquea recrear el mismo
+    # nombre: se purga al destruir y no se intenta recuperar uno borrado.
+    api_management {
+      purge_soft_delete_on_destroy = true
+      recover_soft_deleted         = false
+    }
+  }
 }
 
 provider "azuread" {

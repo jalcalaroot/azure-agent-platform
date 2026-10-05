@@ -22,6 +22,12 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
   TF_VAR_subscription_id: ${{ vars.ARM_SUBSCRIPTION_ID }}
   TF_VAR_tenant_id: ${{ vars.ARM_TENANT_ID }}
+  TF_VAR_apim_publisher_email: ${{ secrets.APIM_PUBLISHER_EMAIL }}
+  TF_VAR_network_privatelink_subnet_id: ${{ vars.NETWORK_PRIVATELINK_SUBNET_ID }}
+  TF_VAR_network_apim_subnet_id: ${{ vars.NETWORK_APIM_SUBNET_ID }}
+  TF_VAR_network_function_app_subnet_id: ${{ vars.NETWORK_FUNC_SUBNET_ID }}
+  TF_VAR_network_vnet_id: ${{ vars.NETWORK_VNET_ID }}
+  TF_VAR_network_log_analytics_workspace_id: ${{ vars.NETWORK_LOG_ANALYTICS_WORKSPACE_ID }}
   ARM_USE_OIDC: true
 
 jobs:

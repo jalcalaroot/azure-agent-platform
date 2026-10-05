@@ -10,6 +10,8 @@
 # mismo recurso que Content Safety (ver content_safety.tf), solo con otro
 # kind.
 resource "azurerm_cognitive_account" "ai_foundry" {
+  #checkov:skip=CKV_AZURE_238:la cuenta no llama a otros servicios, el acceso es entrante por RBAC de la managed identity del Function App - no necesita identidad propia.
+  #checkov:skip=CKV2_AZURE_22:CMK genera costo de operaciones de Key Vault y no hay datos de negocio sensibles (README publicos) - Microsoft-managed keys para la POC.
   name                = var.ai_foundry_account_name
   location            = var.location
   resource_group_name = var.resource_group_name

@@ -6,6 +6,8 @@
 # Function App), no configuracion de Terraform - este archivo solo
 # provisiona la cuenta y su acceso privado.
 resource "azurerm_cognitive_account" "content_safety" {
+  #checkov:skip=CKV_AZURE_238:la cuenta no llama a otros servicios, el acceso es entrante por RBAC de la managed identity del Function App - no necesita identidad propia.
+  #checkov:skip=CKV2_AZURE_22:CMK genera costo de operaciones de Key Vault y no hay datos de negocio sensibles (README publicos) - Microsoft-managed keys para la POC.
   name                = var.content_safety_account_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -17,9 +19,11 @@ resource "azurerm_cognitive_account" "content_safety" {
   local_auth_enabled            = false
   public_network_access_enabled = false
 
+  # Sin `bypass`: el provider lo rechaza para kind ContentSafety (solo vale
+  # para OpenAI, AIServices y TextAnalytics) - encontrado en el primer plan
+  # real, `validate` no lo detecta.
   network_acls {
     default_action = "Deny"
-    bypass         = "AzureServices"
   }
 
   tags = local.tags

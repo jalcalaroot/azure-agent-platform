@@ -1,12 +1,14 @@
 # Rango real, verificado contra el Terraform Registry (mcp__terraform,
 # 2026-09-30) para cada AVM usada en este repo - no adivinado:
-#   - azurerm: keyvault-vault (0.11.0) pide >= 4.81; documentdb-databaseaccount
-#     (0.11.0) pide ~> 4.0; waf-policy (0.2.0) pide ~> 4.2; el resto (appgw,
-#     insights-component, authorization-roleassignment) aceptan >= 3.7x, < 5.0.
-#     Interseccion real: >= 4.81.0, < 5.0.0 - mismo piso que azure-virtual-network.
+#   - azurerm: documentdb-databaseaccount (0.11.0) pide ~> 4.0; apimanagement-
+#     service (0.9.0) pide >= 4.0, < 5.0; insights-component y
+#     authorization-roleassignment aceptan >= 3.71, < 5.0. El piso 4.81 viene
+#     de la primera version de este repo (keyvault-vault 0.11.0, ya
+#     removido) y se mantiene a proposito: mismo piso que azure-virtual-
+#     network, sin motivo para aflojarlo.
 #   - azapi: documentdb-databaseaccount y web-site piden ~> 2.12 (el mas
-#     estricto); appgw ~> 2.9; insights-component/authorization-roleassignment
-#     ~> 2.4. Interseccion: >= 2.12.0, < 3.0.0.
+#     estricto); apimanagement-service ~> 2.4; insights-component/
+#     authorization-roleassignment ~> 2.4. Interseccion: >= 2.12.0, < 3.0.0.
 #   - azuread: solo authorization-roleassignment lo declara, >= 2.46, < 4.0.
 #   - random: documentdb-databaseaccount pide ~> 3.6 (el mas estricto).
 #   - time: usado transitivamente por varios modulos (documentdb-databaseaccount,

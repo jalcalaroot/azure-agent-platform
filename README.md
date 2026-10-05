@@ -1,60 +1,47 @@
-# azure-agent-platform
+# Azure Docs Assistant
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jalcalaroot/azure-agent-platform/badge)](https://scorecard.dev/viewer/?uri=github.com/jalcalaroot/azure-agent-platform)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jalcalaroot/azure-docs-assistant/badge)](https://scorecard.dev/viewer/?uri=github.com/jalcalaroot/azure-docs-assistant)
 
-RAG (Retrieval-Augmented Generation) end-to-end sobre Azure AI Foundry, con Cosmos DB como vector store nativo, detrás de Application Gateway + WAF, identidad de aplicación vía Entra ID y guardrails de Content Safety. Standalone Terraform project — own backend, own CI/CD, own state; consume los outputs de [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network).
+An end-to-end **RAG** (Retrieval-Augmented Generation) service on **Azure AI Foundry**, with **Cosmos DB** as the native vector store, fronted by **API Management**, secured with **Entra ID** and guarded by **Content Safety**. Standalone Terraform project: own backend, own CI/CD, own state. It consumes the outputs of [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network).
 
 ## Architecture
 
 ```
-INGESTA (offline)
-
-  README de un repo propio (público)
-        │
-        ▼
-  Durable Function orchestrator
-  (chunk_document → generate_embeddings → store_in_cosmos)
-
-
-CONSULTA (en caliente)
-
-  Cliente (Postman / Streamlit)
-        │  Authorization: Bearer <token>
-        ▼
-  Application Gateway (WAF_v2)
-        │
-        ▼
-  Function App (Flex Consumption)
-  FastAPI + Durable Functions
-  - App Registration valida el token
-  - Content Safety filtra input/output
-  - check semantic_cache → si no hay hit: embed → vector search → generate
-  - log en Cosmos DB
+Client (Streamlit / Postman)
+   │  Authorization: Bearer <Entra token>
+   ▼
+API Management  (Developer, VNet External)      ← only public component
+   │  validate-jwt + rate limit (60/min per IP)
+   ▼
+Function App    (Flex Consumption, private endpoint)
+   │  FastAPI + Durable Functions
+   │  Content Safety (Prompt Shields) → semantic cache → embed → vector search → generate
+   ▼
+Cosmos DB (vectors + cache) · AI Foundry (embeddings + chat) · Content Safety
 ```
 
-Todo detrás de la red privada de [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network) — Application Gateway es el único componente con exposición pública de todo el sistema.
+Ingestion runs through the same Function App: a Durable orchestrator chunks the READMEs of the project repos, embeds them and stores them in Cosmos DB. Everything except APIM sits behind the private network of `azure-virtual-network`.
+
+Public endpoints: `POST /policyhub/ask`, `POST /policyhub/ingest`, `GET /policyhub/ingest/{id}` (JWT required) and `GET /policyhub/health` (no token).
 
 ## Resources deployed
 
-| Resource | Purpose | Docs |
+| Resource | Purpose | Module / docs |
 |---|---|---|
-| Cosmos DB (serverless, vector search) | Vector store para retrieval + caché semántica; built on [`Azure/avm-res-documentdb-databaseaccount` v0.11.0](https://registry.terraform.io/modules/Azure/avm-res-documentdb-databaseaccount/azurerm/0.11.0) | [Vector search in Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/vector-search) |
-| Azure AI Foundry (Cognitive Services, kind `AIServices`) | Deployments de embeddings + chat; sin AVM dedicada todavía | [Azure AI Foundry overview](https://learn.microsoft.com/en-us/azure/ai-foundry/what-is-ai-foundry) |
-| Azure AI Content Safety | Prompt Shields (input) + filtro de severidad (output); sin AVM dedicada todavía | [Content Safety overview](https://learn.microsoft.com/en-us/azure/ai-services/content-safety/overview) |
-| Function App (Flex Consumption) | FastAPI + Durable Functions, endpoint `/ask`; built on [`Azure/avm-res-web-site` v0.23.0](https://registry.terraform.io/modules/Azure/avm-res-web-site/azurerm/0.23.0) | [Flex Consumption plan](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan) |
-| Application Gateway (WAF_v2) | Único punto de exposición pública del sistema; built on [`Azure/avm-res-network-applicationgateway` v0.5.3](https://registry.terraform.io/modules/Azure/avm-res-network-applicationgateway/azurerm/0.5.3) | [Application Gateway overview](https://learn.microsoft.com/en-us/azure/application-gateway/overview) |
-| WAF Policy (OWASP 3.2, Prevention) | Reglas aplicadas por el Application Gateway; built on [`Azure/avm-res-network-applicationgatewaywebapplicationfirewallpolicy` v0.2.0](https://registry.terraform.io/modules/Azure/avm-res-network-applicationgatewaywebapplicationfirewallpolicy/azurerm/0.2.0) | [WAF on Application Gateway](https://learn.microsoft.com/en-us/azure/web-application-firewall/ag/ag-overview) |
-| Key Vault (Private Endpoint) | Certificado TLS del listener del Application Gateway; built on [`Azure/avm-res-keyvault-vault` v0.11.0](https://registry.terraform.io/modules/Azure/avm-res-keyvault-vault/azurerm/0.11.0) | [Private Link overview](https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview) |
-| Application Insights | Telemetría del Function App; built on [`Azure/avm-res-insights-component` v0.4.0](https://registry.terraform.io/modules/Azure/avm-res-insights-component/azurerm/0.4.0) | [Application Insights overview](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview) |
-| App Registration (Entra ID) | Valida los tokens del endpoint `/ask` (Postman/Streamlit) | [Register an application](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) |
-| Role Assignments | RBAC de la Managed Identity del Function App sobre AI Foundry/Content Safety; built on [`Azure/avm-res-authorization-roleassignment` v0.3.1](https://registry.terraform.io/modules/Azure/avm-res-authorization-roleassignment/azurerm/0.3.1) | [Azure RBAC overview](https://learn.microsoft.com/en-us/azure/role-based-access-control/overview) |
+| Cosmos DB (serverless, vector search) | Knowledge base and semantic cache | [`avm-res-documentdb-databaseaccount` 0.11.0](https://registry.terraform.io/modules/Azure/avm-res-documentdb-databaseaccount/azurerm/0.11.0) |
+| Azure AI Foundry (`AIServices`) | `text-embedding-3-small` and `gpt-4.1-mini` deployments | [Overview](https://learn.microsoft.com/en-us/azure/ai-foundry/what-is-ai-foundry) |
+| Azure AI Content Safety | Prompt Shields on input, severity filter on output | [Overview](https://learn.microsoft.com/en-us/azure/ai-services/content-safety/overview) |
+| Function App (Flex Consumption) + storage | FastAPI and Durable Functions, managed identity only | [`avm-res-web-site` 0.23.0](https://registry.terraform.io/modules/Azure/avm-res-web-site/azurerm/0.23.0), [`avm-res-storage-storageaccount` 0.10.0](https://registry.terraform.io/modules/Azure/avm-res-storage-storageaccount/azurerm/0.10.0) |
+| API Management (Developer, VNet External) | Public gateway: JWT validation and rate limiting | [`avm-res-apimanagement-service` 0.9.0](https://registry.terraform.io/modules/Azure/avm-res-apimanagement-service/azurerm/0.9.0) |
+| Application Insights | Function App telemetry | [`avm-res-insights-component` 0.4.0](https://registry.terraform.io/modules/Azure/avm-res-insights-component/azurerm/0.4.0) |
+| App Registration (Entra ID) | `access_as_user` scope validated by APIM | [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) |
+| Role assignments | RBAC for the Function App identity | [`avm-res-authorization-roleassignment` 0.3.1](https://registry.terraform.io/modules/Azure/avm-res-authorization-roleassignment/azurerm/0.3.1) |
 
 ## Prerequisites
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5.0
-- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), logged in via `az login` con Contributor-or-better en la suscripción
-- [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network) ya desplegado — este proyecto consume sus subnets (`privatelink`, `appgw`, `func`) y su Log Analytics Workspace, copiados a mano (sin `terraform_remote_state`)
-- Quien corra el primer `apply` necesita el rol de aplicación de Microsoft Graph `Application.ReadWrite.OwnedBy` (o `.All`) para crear la App Registration/Service Principal
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5.0 and [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az login`, Contributor on the subscription)
+- [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network) deployed: this project needs its `privatelink`, `apim` and `func` subnets, the VNet and the Log Analytics workspace
+- Microsoft Graph application role `Application.ReadWrite.OwnedBy` (or `.All`) for whoever runs the first `apply`, to create the App Registration
 
 ## Usage
 
@@ -62,56 +49,62 @@ Todo detrás de la red privada de [`azure-virtual-network`](https://github.com/j
 az login
 export TF_VAR_subscription_id="<subscription-id>"
 export TF_VAR_tenant_id="<tenant-id>"
+export TF_VAR_apim_publisher_email="<email>"
+# plus the five TF_VAR_network_* values from azure-virtual-network
 
-terraform init
-terraform apply
+terraform init && terraform apply
 ```
 
-`resource_group_name`/`location` default a `jalcalaroot`/`eastus`. Las 5 variables `network_*` (subnets + Log Analytics Workspace de `azure-virtual-network`) no tienen default — pasarlas explícitamente.
+Deploy the app (the Function App is private, so the script opens public access only for the deploy and always closes it), then smoke-test through the gateway:
+
+```bash
+scripts/deploy-app.sh
+export API_BASE_URL="$(terraform output -raw api_base_url)"
+TOKEN=$(az account get-access-token --scope api://policy-hub/.default --query accessToken -o tsv)
+scripts/smoke-test.sh "$API_BASE_URL" "$TOKEN" --ingest
+```
+
+Demo UI and Postman:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r demo/requirements.txt
+GATEWAY_URL="$API_BASE_URL" .venv/bin/streamlit run demo/streamlit_app.py   # http://localhost:8501
+```
+
+A Postman collection is in `demo/postman/`. Unit tests: `cd app && pip install -r requirements-dev.txt && pytest`.
 
 ## Configuration
 
+Defaults live in [`variables.tf`](variables.tf). The ones you will most likely touch:
+
 | Variable | Default | Notes |
 |---|---|---|
-| `subscription_id` | — | via `TF_VAR_subscription_id` |
-| `tenant_id` | — | via `TF_VAR_tenant_id`, requerido por el provider `azuread` |
+| `subscription_id`, `tenant_id`, `apim_publisher_email` | none | via `TF_VAR_*` |
+| `network_*` (5 variables) | none | outputs of `azure-virtual-network` |
 | `resource_group_name` / `location` | `jalcalaroot` / `eastus` | |
-| `network_privatelink_subnet_id` / `network_appgw_subnet_id` / `network_function_app_subnet_id` / `network_vnet_id` / `network_log_analytics_workspace_id` | — | outputs de `azure-virtual-network`, copiados a mano |
-| `cosmos_account_name` | `cosmos-agent-platform` | único globalmente |
-| `ai_foundry_account_name` / `content_safety_account_name` | `aif-agent-platform` / `cs-agent-platform` | únicos globalmente (custom subdomain) |
-| `embedding_model_name` / `embedding_model_version` | `text-embedding-3-small` / `1` | |
-| `chat_model_name` / `chat_model_version` | `gpt-4o-mini` / `2024-07-18` | |
-| `function_app_name` / `function_app_storage_account_name` | `func-agent-platform` / `stagentplatformfunc` | storage único globalmente |
-| `fc1_instance_memory_mb` / `fc1_maximum_instance_count` | `2048` / `100` | |
-| `fc1_python_version` | `3.12` | |
-| `app_gateway_name` / `waf_policy_name` | `agw-agent-platform` / `waf-agent-platform` | |
-| `app_gateway_cert_subject` | `CN=agent-platform.jalcalaroot.internal` | certificado autofirmado, sin dominio público asignado todavía |
-| `key_vault_name` | `kv-agent-platform` | único globalmente |
-| `app_registration_display_name` / `app_registration_identifier_uri` | `policy-hub` / `api://policy-hub` | |
-| `owner` / `environment` / `tags` | `johan` / `dev` / `{}` | |
+| `function_app_name`, `apim_name`, `cosmos_account_name` | `func-jalcalaroot-agent`, `apim-jalcalaroot-agent`, `cosmos-agent-platform` | globally unique |
+| `chat_model_name` / `chat_model_version` | `gpt-4.1-mini` / `2025-04-14` | non-reasoning model, accepts `temperature` |
+| `embedding_model_name` | `text-embedding-3-small` | |
 
 ## Outputs
 
 | Output | Description |
 |---|---|
-| `cosmos_account_id` / `cosmos_account_endpoint` | Cosmos DB resource ID / endpoint |
-| `ai_foundry_account_id` / `ai_foundry_endpoint` | AI Foundry resource ID / endpoint |
-| `content_safety_account_id` | Content Safety resource ID |
-| `function_app_id` / `function_app_name` / `function_app_identity_principal_id` | Function App resource ID, nombre, y el principal ID de su Managed Identity |
-| `app_gateway_public_ip` | IP pública — único punto de entrada del sistema |
-| `app_registration_client_id` / `app_registration_identifier_uri` | Para configurar el cliente OAuth (Postman/Streamlit) |
-| `key_vault_id` | Key Vault resource ID |
+| `api_base_url` | Gateway base URL (`<base>/ask`, `/ingest`, `/health`) |
+| `apim_gateway_url` / `apim_id` | APIM gateway URL and resource ID |
+| `app_registration_client_id` / `app_registration_identifier_uri` | OAuth client settings for Postman and Streamlit |
+| `cosmos_account_endpoint`, `ai_foundry_endpoint`, `function_app_name`, … | Endpoints and IDs of the other resources |
 
 ## CI/CD
 
-GitHub Actions, autenticado contra Azure vía OIDC (Workload Identity Federation) — sin secretos ni credenciales estáticas en GitHub.
+GitHub Actions authenticated to Azure through OIDC, with no stored credentials.
 
 | Workflow | Trigger | Identity | What it does |
 |---|---|---|---|
-| `terraform-plan.yml` | Pull request | `agent-platform-plan` (read-only) | `fmt -check`, `validate`, tflint, Checkov (blocking), `plan`, posts the plan as a PR comment |
-| `terraform-apply.yml` | Push to `main` | `agent-platform-agent` | `plan` + `apply` |
-| `gitleaks.yml` | PR / push to `main` | — | Secret scanning |
+| `terraform-plan.yml` | Pull request | `agent-platform-plan` (read-only) | fmt, validate, tflint, Checkov, plan posted on the PR |
+| `terraform-apply.yml` | Push to `main` | `agent-platform-agent` | plan and apply |
+| `gitleaks.yml` | PR / push | none | Secret scanning |
 
-Ambas identidades viven en un root de Terraform persistente ([`./ci`](./ci)), separado del state destruible de este proyecto. Required GitHub repository variables: `ARM_CLIENT_ID_AGENT`, `ARM_CLIENT_ID_PLAN`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`.
+Both identities live in the persistent [`ci/`](ci) root. Required repository variables: `ARM_CLIENT_ID_AGENT`, `ARM_CLIENT_ID_PLAN`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`, `NETWORK_PRIVATELINK_SUBNET_ID`, `NETWORK_APIM_SUBNET_ID`, `NETWORK_FUNC_SUBNET_ID`, `NETWORK_VNET_ID`, `NETWORK_LOG_ANALYTICS_WORKSPACE_ID`; required secret: `APIM_PUBLISHER_EMAIL`.
 
-See [CLAUDE.md](CLAUDE.md) for design decisions, gaps conocidos, y el historial completo del proyecto.
+Design decisions, known gaps and project history are in [CLAUDE.md](CLAUDE.md).

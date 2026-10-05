@@ -43,6 +43,16 @@ resource "azuread_application" "policy_hub" {
   tags = ["agent-platform"]
 }
 
+# Azure CLI (client id publico y conocido de Microsoft) pre-autorizado para
+# el scope access_as_user: sin esto, `az account get-access-token` y
+# DefaultAzureCredential (demo de Streamlit) piden consentimiento
+# interactivo (AADSTS65001) para pedir tokens de esta API.
+resource "azuread_application_pre_authorized" "azure_cli" {
+  application_id       = azuread_application.policy_hub.id
+  authorized_client_id = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
+  permission_ids       = [random_uuid.access_as_user_scope.result]
+}
+
 resource "azuread_service_principal" "policy_hub" {
   client_id = azuread_application.policy_hub.client_id
   owners    = [data.azuread_client_config.current.object_id]

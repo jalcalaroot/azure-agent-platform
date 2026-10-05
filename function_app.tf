@@ -47,37 +47,75 @@ module "function_app_storage" {
 
   private_endpoints = {
     blob = {
+      name                          = "pe-${var.function_app_storage_account_name}-blob"
       subnet_resource_id            = var.network_privatelink_subnet_id
       subresource_name              = "blob"
-      private_dns_zone_resource_ids = [azurerm_private_dns_zone.blob_func.id]
+      private_dns_zone_resource_ids = [data.azurerm_private_dns_zone.blob.id]
+    }
+    # El host de Functions (AzureWebJobsStorage por identidad) y Durable
+    # Functions (provider Azure Storage) usan tambien cola y tabla, no solo
+    # blob - sin estos 2 endpoints privados el app no arranca o no orquesta.
+    queue = {
+      name                          = "pe-${var.function_app_storage_account_name}-queue"
+      subnet_resource_id            = var.network_privatelink_subnet_id
+      subresource_name              = "queue"
+      private_dns_zone_resource_ids = [azurerm_private_dns_zone.queue.id]
+    }
+    table = {
+      name                          = "pe-${var.function_app_storage_account_name}-table"
+      subnet_resource_id            = var.network_privatelink_subnet_id
+      subresource_name              = "table"
+      private_dns_zone_resource_ids = [azurerm_private_dns_zone.table.id]
     }
   }
 }
 
-resource "azurerm_private_dns_zone" "blob_func" {
-  name                = "privatelink.blob.core.windows.net.func"
+resource "azurerm_private_dns_zone" "queue" {
+  name                = "privatelink.queue.core.windows.net"
   resource_group_name = var.resource_group_name
   tags                = local.tags
-
-  # Nombre de zona con sufijo ".func" - azure-virtual-network YA crea
-  # "privatelink.blob.core.windows.net" para su propio storage account; una
-  # Private DNS Zone con el nombre real de dominio no puede duplicarse dos
-  # veces en el mismo resource group. Workaround pragmatico: esta zona
-  # separada solo resuelve para el storage de este Function App. Revisar
-  # si conviene consolidar ambas zonas en azure-virtual-network mas
-  # adelante.
 }
 
-resource "azurerm_private_dns_zone_virtual_network_link" "blob_func" {
-  name                  = "link-blobfunc-agent-platform"
+resource "azurerm_private_dns_zone_virtual_network_link" "queue" {
+  name                  = "link-queue-agent-platform"
   resource_group_name   = var.resource_group_name
-  private_dns_zone_name = azurerm_private_dns_zone.blob_func.name
+  private_dns_zone_name = azurerm_private_dns_zone.queue.name
   virtual_network_id    = var.network_vnet_id
   registration_enabled  = false
   tags                  = local.tags
 }
 
+resource "azurerm_private_dns_zone" "table" {
+  name                = "privatelink.table.core.windows.net"
+  resource_group_name = var.resource_group_name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "table" {
+  name                  = "link-table-agent-platform"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.table.name
+  virtual_network_id    = var.network_vnet_id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+# azure-virtual-network ya crea Y linkea a la VNet la zona real
+# "privatelink.blob.core.windows.net" (para su propio storage), y no pueden
+# existir dos zonas con el mismo nombre en el mismo resource group - se
+# reutiliza por data source en vez de crear otra. Antes este repo creaba
+# "privatelink.blob.core.windows.net.func", un nombre inventado que no
+# resuelve nada: el CNAME publico de un storage account apunta a
+# <cuenta>.privatelink.blob.core.windows.net, nunca a un sufijo ".func".
+# Consecuencia: requiere azure-virtual-network desplegado (ya es
+# prerrequisito de este proyecto).
+data "azurerm_private_dns_zone" "blob" {
+  name                = "privatelink.blob.core.windows.net"
+  resource_group_name = var.resource_group_name
+}
+
 resource "azurerm_storage_container" "deployment_package" {
+  #checkov:skip=CKV2_AZURE_21:contenedor interno con el paquete de deploy (codigo publico del repo), sin lectura por usuarios - el logging de lectura no aporta en la POC.
   name                  = "deploymentpackage"
   storage_account_id    = module.function_app_storage.resource_id
   container_access_type = "private"
@@ -123,6 +161,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "azurewebsites" {
 }
 
 module "function_app" {
+  #checkov:skip=CKV_TF_1:pinned por version semver del Terraform Registry, no un git tag.
   source  = "Azure/avm-res-web-site/azurerm"
   version = "0.23.0"
 
@@ -133,6 +172,10 @@ module "function_app" {
   tags                     = local.tags
 
   enable_telemetry = false
+
+  # Los roles de storage tienen que existir antes de que la plataforma lea
+  # el deployment package al crear el app.
+  depends_on = [module.role_assignments]
 
   kind                   = "functionapp"
   os_type                = "Linux"
@@ -151,15 +194,48 @@ module "function_app" {
   storage_container_endpoint        = "https://${var.function_app_storage_account_name}.blob.core.windows.net/${azurerm_storage_container.deployment_package.name}"
   storage_user_assigned_identity_id = azurerm_user_assigned_identity.function_app.id
 
+  # Conexion SEPARADA de la de deployment: AzureWebJobsStorage es la
+  # conexion propia del host (function keys, singletons, metadata de
+  # triggers, tareas de Durable Functions) y, segun la doc del propio
+  # modulo, "every plan requires" - sin ella el app no arranca. Encontrado
+  # leyendo el codigo del modulo, no en un plan/apply.
+  storage_account_name                     = var.function_app_storage_account_name
+  storage_uses_managed_identity            = true
+  storage_user_assigned_identity_client_id = azurerm_user_assigned_identity.function_app.client_id
+
+  # Configuracion que lee el codigo de la aplicacion (app/). Todo accede por
+  # la Managed Identity del Function App - sin keys ni connection strings.
+  app_settings = {
+    AZURE_CLIENT_ID         = azurerm_user_assigned_identity.function_app.client_id
+    COSMOS_ENDPOINT         = module.cosmos.endpoint
+    COSMOS_DATABASE         = "policyhub"
+    AZURE_OPENAI_ENDPOINT   = "https://${var.ai_foundry_account_name}.openai.azure.com/"
+    EMBEDDING_DEPLOYMENT    = azurerm_cognitive_deployment.embedding.name
+    CHAT_DEPLOYMENT         = azurerm_cognitive_deployment.chat.name
+    CONTENT_SAFETY_ENDPOINT = azurerm_cognitive_account.content_safety.endpoint
+  }
+
   managed_identities = {
     user_assigned_resource_ids = [azurerm_user_assigned_identity.function_app.id]
   }
 
   # VNet integration (outbound) - ver GAP documentado en variables.tf,
   # network_function_app_subnet_id no tiene todavia un valor real.
-  virtual_network_subnet_id     = var.network_function_app_subnet_id
-  vnet_route_all_traffic        = true
-  public_network_access_enabled = false
+  virtual_network_subnet_id              = var.network_function_app_subnet_id
+  vnet_route_all_traffic                 = true
+  vnet_application_traffic_enabled       = true
+  virtual_network_backup_restore_enabled = true
+  vnet_content_share_enabled             = true
+  vnet_image_pull_enabled                = true
+  public_network_access_enabled          = false
+
+  # El modulo pone TLS 1.3 minimo por defecto y el gateway de APIM no negocia
+  # TLS 1.3 hacia el backend: todo reenvio daba 500 BackendConnectionFailure
+  # ("Authentication failed"). Ver CLAUDE.md, "El 500 de APIM".
+  site_config = {
+    minimum_tls_version    = "1.2"
+    vnet_route_all_enabled = true
+  }
 
   private_endpoints = {
     sites = {
