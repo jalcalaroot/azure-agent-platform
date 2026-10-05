@@ -32,7 +32,7 @@ CONSULTA (en caliente)
   - log en Cosmos DB
 ```
 
-Todo detrás de la red privada de [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network) — API Management es el único componente con exposición pública de todo el sistema (endpoints `POST /policyhub/ask` y `GET /policyhub/health`).
+Todo detrás de la red privada de [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network) — API Management es el único componente con exposición pública de todo el sistema (`POST /policyhub/ask`, `POST /policyhub/ingest`, `GET /policyhub/ingest/{id}` con JWT; `GET /policyhub/health` sin token). El Function App tiene el acceso público deshabilitado.
 
 ## Resources deployed
 
@@ -45,6 +45,7 @@ Todo detrás de la red privada de [`azure-virtual-network`](https://github.com/j
 | API Management (Developer, VNet External) | Único punto de exposición pública; valida el JWT de Entra ID y limita el rate antes de llegar al Function App; built on [`Azure/avm-res-apimanagement-service` v0.9.0](https://registry.terraform.io/modules/Azure/avm-res-apimanagement-service/azurerm/0.9.0) | [VNet concepts for API Management](https://learn.microsoft.com/en-us/azure/api-management/virtual-network-concepts) |
 | Application Insights | Telemetría del Function App; built on [`Azure/avm-res-insights-component` v0.4.0](https://registry.terraform.io/modules/Azure/avm-res-insights-component/azurerm/0.4.0) | [Application Insights overview](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview) |
 | App Registration (Entra ID) | Expone el scope `access_as_user` que valida API Management (Postman/Streamlit) | [Register an application](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) |
+| Storage Account + Private Endpoints (blob/queue/table) | Host de Functions y estado de Durable Functions, por identidad administrada; built on [`Azure/avm-res-storage-storageaccount` v0.10.0](https://registry.terraform.io/modules/Azure/avm-res-storage-storageaccount/azurerm/0.10.0) | [Flex Consumption networking](https://learn.microsoft.com/en-us/azure/azure-functions/functions-networking-options) |
 | Role Assignments | RBAC de la Managed Identity del Function App sobre AI Foundry/Content Safety; built on [`Azure/avm-res-authorization-roleassignment` v0.3.1](https://registry.terraform.io/modules/Azure/avm-res-authorization-roleassignment/azurerm/0.3.1) | [Azure RBAC overview](https://learn.microsoft.com/en-us/azure/role-based-access-control/overview) |
 
 ## Prerequisites
@@ -66,20 +67,26 @@ terraform init
 terraform apply
 ```
 
-El código de la aplicación (`app/`) se publica aparte, con OneDeploy y build remoto (el Function App es privado: hay que abrir su acceso público solo durante el deploy y cerrarlo después). Después se ingestan los READMEs y se consulta:
+El código de la aplicación (`app/`) se publica aparte. El Function App es privado, así que `scripts/deploy-app.sh` abre su acceso público solo durante el deploy (OneDeploy con build remoto) y lo cierra siempre al salir. Después, la prueba de humo cubre ingesta, consulta, caché, prompt injection y fuera de alcance:
 
 ```bash
-cd app && zip -r ../app.zip . -x "tests/*" ".venv/*" "__pycache__/*"
-curl -X POST "https://<function-app>.scm.azurewebsites.net/api/publish?RemoteBuild=true" \
-  -H "Authorization: Bearer $(az account get-access-token --resource https://management.azure.com --query accessToken -o tsv)" \
-  -H "Content-Type: application/zip" --data-binary @../app.zip
+scripts/deploy-app.sh                                   # publica app/ en el Function App
+export API_BASE_URL="$(terraform output -raw api_base_url)"
+TOKEN=$(az account get-access-token --scope api://policy-hub/.default --query accessToken -o tsv)
+scripts/smoke-test.sh "$API_BASE_URL" "$TOKEN" --ingest   # 6 checks, ingesta de los 4 READMEs incluida
 
-curl -X POST "$API_BASE_URL/ingest" -H "Authorization: Bearer $TOKEN" -d '{}'   # 4 READMEs por defecto
-curl -X POST "$API_BASE_URL/ask"    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+curl -X POST "$API_BASE_URL/ask" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"question": "¿Qué subnets tiene la VNet?"}'
 ```
 
-Tests locales: `cd app && pip install -r requirements-dev.txt && pytest`. Demo: `demo/streamlit_app.py` y la colección de Postman en `demo/postman/`.
+Demo con interfaz:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r demo/requirements.txt
+GATEWAY_URL="$API_BASE_URL" .venv/bin/streamlit run demo/streamlit_app.py    # http://localhost:8501
+```
+
+Tests locales: `cd app && pip install -r requirements-dev.txt && pytest`. La colección de Postman está en `demo/postman/`.
 
 `resource_group_name`/`location` default a `jalcalaroot`/`eastus`. Las 5 variables `network_*` (subnets + Log Analytics Workspace de `azure-virtual-network`) no tienen default — pasarlas explícitamente.
 
