@@ -67,8 +67,8 @@ resource "azurerm_role_assignment" "ci_plan_state_reader" {
 # Function App la necesita, ver cosmosdb.tf).
 
 # `plan` refresca el estado real. Con recursos ya desplegados, el provider
-# llama a dos acciones POST `list*` que Reader no incluye (403 en el check
-# Plan del PR #1): claves de Cosmos DB y la clave de delegacion de APIM. Rol
+# llama a acciones POST `list*` que Reader no incluye (403 en el check
+# Plan del PR #1): claves de Cosmos DB y los secretos de APIM (delegacion, tenant). Rol
 # personalizado minimo, asignado solo sobre esos dos recursos y no al RG.
 # Tambien necesita el rol de aplicacion Graph `Application.Read.All` (lo lee
 # `azuread_application`); es un consentimiento manual, ver CLAUDE.md, gap 9.
@@ -80,7 +80,9 @@ resource "azurerm_role_definition" "ci_plan_refresh" {
   permissions {
     actions = [
       "Microsoft.DocumentDB/databaseAccounts/listKeys/action",
-      "Microsoft.ApiManagement/service/portalsettings/listSecrets/action",
+      "Microsoft.DocumentDB/databaseAccounts/readonlykeys/action",
+      "Microsoft.DocumentDB/databaseAccounts/listConnectionStrings/action",
+      "Microsoft.ApiManagement/service/*/listSecrets/action",
     ]
   }
 
