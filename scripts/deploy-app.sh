@@ -12,7 +12,8 @@ set -euo pipefail
 APP="${1:-func-jalcalaroot-agent}"
 RG="${2:-jalcalaroot}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ZIP="$(mktemp --suffix=.zip)"
+TMP="$(mktemp -d)"
+ZIP="$TMP/app.zip"
 SUB="$(az account show --query id -o tsv)"
 SITE="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Web/sites/${APP}?api-version=2025-03-01"
 SCM="https://${APP}.scm.azurewebsites.net"
@@ -23,7 +24,7 @@ set_public_access() {
 }
 token() { az account get-access-token --resource https://management.azure.com --query accessToken -o tsv; }
 
-trap 'echo "cerrando acceso publico..."; set_public_access Disabled >/dev/null; rm -f "$ZIP"' EXIT
+trap 'echo "cerrando acceso publico..."; set_public_access Disabled >/dev/null; rm -rf "$TMP"' EXIT
 
 (cd "$ROOT/app" && zip -qr "$ZIP" . -x "tests/*" ".venv/*" "__pycache__/*" "*/__pycache__/*" "*.pyc" ".pytest_cache/*" "requirements-dev.txt")
 

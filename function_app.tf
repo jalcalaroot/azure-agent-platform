@@ -219,9 +219,21 @@ module "function_app" {
 
   # VNet integration (outbound) - ver GAP documentado en variables.tf,
   # network_function_app_subnet_id no tiene todavia un valor real.
-  virtual_network_subnet_id     = var.network_function_app_subnet_id
-  vnet_route_all_traffic        = true
-  public_network_access_enabled = false
+  virtual_network_subnet_id              = var.network_function_app_subnet_id
+  vnet_route_all_traffic                 = true
+  vnet_application_traffic_enabled       = true
+  virtual_network_backup_restore_enabled = true
+  vnet_content_share_enabled             = true
+  vnet_image_pull_enabled                = true
+  public_network_access_enabled          = false
+
+  # El modulo pone TLS 1.3 minimo por defecto y el gateway de APIM no negocia
+  # TLS 1.3 hacia el backend: todo reenvio daba 500 BackendConnectionFailure
+  # ("Authentication failed"). Ver CLAUDE.md, "El 500 de APIM".
+  site_config = {
+    minimum_tls_version    = "1.2"
+    vnet_route_all_enabled = true
+  }
 
   private_endpoints = {
     sites = {
