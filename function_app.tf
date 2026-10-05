@@ -115,6 +115,7 @@ data "azurerm_private_dns_zone" "blob" {
 }
 
 resource "azurerm_storage_container" "deployment_package" {
+  #checkov:skip=CKV2_AZURE_21:contenedor interno con el paquete de deploy (codigo publico del repo), sin lectura por usuarios - el logging de lectura no aporta en la POC.
   name                  = "deploymentpackage"
   storage_account_id    = module.function_app_storage.resource_id
   container_access_type = "private"
@@ -160,6 +161,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "azurewebsites" {
 }
 
 module "function_app" {
+  #checkov:skip=CKV_TF_1:pinned por version semver del Terraform Registry, no un git tag.
   source  = "Azure/avm-res-web-site/azurerm"
   version = "0.23.0"
 

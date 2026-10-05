@@ -5,6 +5,7 @@
 # Cosmos DB NO pasa por aca - ver nota en cosmosdb.tf, esta AVM no lo
 # soporta.
 module "role_assignments" {
+  #checkov:skip=CKV_TF_1:pinned por version semver del Terraform Registry, no un git tag.
   source  = "Azure/avm-res-authorization-roleassignment/azurerm"
   version = "0.3.1"
 
