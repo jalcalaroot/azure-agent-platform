@@ -44,6 +44,20 @@ module "apim" {
 
   sku_name = "Developer_1"
 
+  # GatewayLogs desde la primera request, a la tabla AzureDiagnostics (la
+  # "Dedicated" tardo mas de 20 min sin mostrar datos en el primer
+  # despliegue y activarla despues de empezar a depurar llego tarde). Es lo
+  # que muestra LastErrorSource/Reason/Message de un 500 del gateway, que
+  # ni on-error ni la traza de APIM devolvieron.
+  diagnostic_settings = {
+    gateway = {
+      name                           = "diag-${var.apim_name}"
+      workspace_resource_id          = var.network_log_analytics_workspace_id
+      log_groups                     = ["allLogs"]
+      log_analytics_destination_type = "AzureDiagnostics"
+    }
+  }
+
   # No hay ningun ejemplo del modulo con Developer + VNet, ver CLAUDE.md,
   # "Gaps y bugs reales".
   virtual_network_type      = "External"
