@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Policy Hub (azure-agent-platform)",
+    "name": "Policy Hub (azure-docs-assistant)",
     "description": "Variables: gateway = output api_base_url (termina en /policyhub), tenant_id, client_id = output app_registration_client_id. OAuth2 Authorization Code + PKCE; el callback de Postman ya esta registrado en la App Registration.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

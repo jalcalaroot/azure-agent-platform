@@ -20,7 +20,7 @@ resource "azurerm_user_assigned_identity" "ci_plan" {
 }
 
 # Subject claims segun el formato ACTUAL de GitHub para este repo
-# (confirmado via `gh api repos/jalcalaroot/azure-agent-platform` ->
+# (confirmado via `gh api repos/jalcalaroot/azure-docs-assistant` ->
 # owner.id=22682982, id=1398572774). Push a main y schedule (cron)
 # presentan el MISMO subject claim (ref:refs/heads/main).
 resource "azurerm_federated_identity_credential" "ci_agent_main" {
@@ -28,7 +28,7 @@ resource "azurerm_federated_identity_credential" "ci_agent_main" {
   user_assigned_identity_id = azurerm_user_assigned_identity.ci_agent.id
   issuer                    = "https://token.actions.githubusercontent.com"
   audience                  = ["api://AzureADTokenExchange"]
-  subject                   = "repo:jalcalaroot@22682982/azure-agent-platform@1398572774:ref:refs/heads/main"
+  subject                   = "repo:jalcalaroot@22682982/azure-docs-assistant@1398572774:ref:refs/heads/main"
 }
 
 resource "azurerm_federated_identity_credential" "ci_plan_pr" {
@@ -36,5 +36,5 @@ resource "azurerm_federated_identity_credential" "ci_plan_pr" {
   user_assigned_identity_id = azurerm_user_assigned_identity.ci_plan.id
   issuer                    = "https://token.actions.githubusercontent.com"
   audience                  = ["api://AzureADTokenExchange"]
-  subject                   = "repo:jalcalaroot@22682982/azure-agent-platform@1398572774:pull_request"
+  subject                   = "repo:jalcalaroot@22682982/azure-docs-assistant@1398572774:pull_request"
 }

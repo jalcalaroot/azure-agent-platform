@@ -29,12 +29,12 @@ bp = df.Blueprint()
 
 GITHUB_OWNER = "jalcalaroot"
 # jalcalaroot-azure-bootstrap es privado (el documento de requisitos lo
-# listaba como publico) - se reemplaza por azure-agent-platform, publico.
+# listaba como publico) - se reemplaza por azure-docs-assistant, publico.
 DEFAULT_REPOS = [
     "azure-virtual-network",
     "azure-aks-cluster",
     "azure-container-apps",
-    "azure-agent-platform",
+    "azure-docs-assistant",
 ]
 EMBED_BATCH = 8
 

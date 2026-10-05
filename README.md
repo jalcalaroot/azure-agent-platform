@@ -1,6 +1,6 @@
-# Azure Agent Platform
+# Azure Docs Assistant
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jalcalaroot/azure-agent-platform/badge)](https://scorecard.dev/viewer/?uri=github.com/jalcalaroot/azure-agent-platform)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jalcalaroot/azure-docs-assistant/badge)](https://scorecard.dev/viewer/?uri=github.com/jalcalaroot/azure-docs-assistant)
 
 An end-to-end **RAG** (Retrieval-Augmented Generation) service on **Azure AI Foundry**, with **Cosmos DB** as the native vector store, fronted by **API Management**, secured with **Entra ID** and guarded by **Content Safety**. Standalone Terraform project: own backend, own CI/CD, own state. It consumes the outputs of [`azure-virtual-network`](https://github.com/jalcalaroot/azure-virtual-network).
 
