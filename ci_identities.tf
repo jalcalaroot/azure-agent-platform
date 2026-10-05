@@ -65,3 +65,36 @@ resource "azurerm_role_assignment" "ci_plan_state_reader" {
 # otorgadas puntualmente donde se necesitan (ver keyvault.tf; Cosmos DB no
 # necesita RBAC de datos para el propio agent, solo la Managed Identity del
 # Function App la necesita, ver cosmosdb.tf).
+
+# `plan` refresca el estado real. Con recursos ya desplegados, el provider
+# llama a dos acciones POST `list*` que Reader no incluye (403 en el check
+# Plan del PR #1): claves de Cosmos DB y la clave de delegacion de APIM. Rol
+# personalizado minimo, asignado solo sobre esos dos recursos y no al RG.
+# Tambien necesita el rol de aplicacion Graph `Application.Read.All` (lo lee
+# `azuread_application`); es un consentimiento manual, ver CLAUDE.md, gap 9.
+resource "azurerm_role_definition" "ci_plan_refresh" {
+  name        = "agent-platform-plan-refresh"
+  scope       = data.azurerm_resource_group.this.id
+  description = "Acciones list* que terraform plan necesita al refrescar Cosmos DB y APIM."
+
+  permissions {
+    actions = [
+      "Microsoft.DocumentDB/databaseAccounts/listKeys/action",
+      "Microsoft.ApiManagement/service/portalsettings/listSecrets/action",
+    ]
+  }
+
+  assignable_scopes = [data.azurerm_resource_group.this.id]
+}
+
+resource "azurerm_role_assignment" "ci_plan_cosmos_refresh" {
+  scope              = module.cosmos.resource_id
+  role_definition_id = azurerm_role_definition.ci_plan_refresh.role_definition_resource_id
+  principal_id       = data.azurerm_user_assigned_identity.ci_plan.principal_id
+}
+
+resource "azurerm_role_assignment" "ci_plan_apim_refresh" {
+  scope              = module.apim.resource_id
+  role_definition_id = azurerm_role_definition.ci_plan_refresh.role_definition_resource_id
+  principal_id       = data.azurerm_user_assigned_identity.ci_plan.principal_id
+}
